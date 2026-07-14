@@ -2433,7 +2433,7 @@ async function saveDataToSheets() {
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Guardando...'; }
 
   const payload = buildAdminPayload();
-  // Ensure thumb base64 is stripped before sending to Sheets
+  // Strip base64 images before sending
   if (payload.resources) {
     payload.resources = payload.resources.map(r => {
       const clean = Object.assign({}, r);
@@ -2458,41 +2458,63 @@ async function saveDataToSheets() {
 
 // Envía datos a Apps Script usando un form POST en iframe oculto
 // Esto evita el bloqueo CORS que afecta a fetch() desde GitHub Pages
-function sendToAppsScript(op, step, payload) {
-  return new Promise((resolve, reject) => {
-    // payload ya viene limpio de base64 desde saveDataToSheets()
-    const dataStr = JSON.stringify(payload);
-    console.log(`[AventurasMat] Enviando a Sheets: ${op}/${step} — ${dataStr.length} chars`);
-    if (payload.resources) {
-      console.log(`[AventurasMat] Recursos: ${payload.resources.length}`);
-    }
-
-    const url = SCRIPT_URL
-      + '?action=saveData'
-      + '&op='   + encodeURIComponent(op)
-      + '&step=' + encodeURIComponent(step)
-      + '&data=' + encodeURIComponent(dataStr);
-
-    // Fetch con no-cors (no podemos leer respuesta pero sí enviar)
+// Sends a single GET request to Apps Script via no-cors fetch + iframe fallback
+function fetchNoCorsSingle(url) {
+  return new Promise((resolve) => {
     fetch(url, { method: 'GET', mode: 'no-cors' })
-      .then(() => {
-        setTimeout(() => resolve(), 1200);
-      })
+      .then(() => setTimeout(resolve, 800))
       .catch(() => {
-        // Fallback iframe
         const iframe = document.createElement('iframe');
         iframe.style.display = 'none';
         document.body.appendChild(iframe);
         let done = false;
-        const timer = setTimeout(() => {
+        const t = setTimeout(() => {
           if (!done) { done = true; document.body.removeChild(iframe); resolve(); }
         }, 5000);
         iframe.onerror = () => {
-          if (!done) { done = true; clearTimeout(timer); document.body.removeChild(iframe); reject(new Error('Error de red')); }
+          if (!done) { done = true; clearTimeout(t); document.body.removeChild(iframe); resolve(); }
         };
         iframe.src = url;
       });
   });
+}
+
+async function sendToAppsScript(op, step, payload) {
+  if (step !== 'desarrollo') {
+    // Inicio and Cierre: send as single request (small payload)
+    const url = SCRIPT_URL
+      + '?action=saveData'
+      + '&op='   + encodeURIComponent(op)
+      + '&step=' + encodeURIComponent(step)
+      + '&data=' + encodeURIComponent(JSON.stringify(payload));
+    console.log(`[AventurasMat] Enviando ${op}/${step} — ${url.length} chars`);
+    await fetchNoCorsSingle(url);
+    return;
+  }
+
+  // DESARROLLO: send mainImg + each resource separately to avoid URL length limits
+  // Step 1: send mainImg and empty resources array first
+  const basePayload = { mainImg: payload.mainImg || '', resources: [] };
+  const baseUrl = SCRIPT_URL
+    + '?action=saveData'
+    + '&op='   + encodeURIComponent(op)
+    + '&step=desarrollo'
+    + '&data=' + encodeURIComponent(JSON.stringify(basePayload));
+  console.log(`[AventurasMat] Enviando base desarrollo — ${baseUrl.length} chars`);
+  await fetchNoCorsSingle(baseUrl);
+
+  // Step 2: send each resource individually using action=saveResource
+  const resources = payload.resources || [];
+  console.log(`[AventurasMat] Enviando ${resources.length} recursos individualmente`);
+  for (let i = 0; i < resources.length; i++) {
+    const resUrl = SCRIPT_URL
+      + '?action=saveResource'
+      + '&op='    + encodeURIComponent(op)
+      + '&index=' + i
+      + '&data='  + encodeURIComponent(JSON.stringify(resources[i]));
+    console.log(`[AventurasMat] Enviando recurso ${i+1} — ${resUrl.length} chars`);
+    await fetchNoCorsSingle(resUrl);
+  }
 }
 
 function buildAdminPayload() {
