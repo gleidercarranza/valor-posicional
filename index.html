@@ -490,8 +490,19 @@
     .res-item-body { padding: 5px 7px; }
     .res-item-badge { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--gray-500); margin-bottom: 2px; }
     .res-item.active .res-item-badge { color: var(--blue-600); }
-    .res-item-title { font-size: .75rem; font-weight: 600; color: var(--gray-700); line-height: 1.3; }
+    .res-item-title { font-size: .75rem; font-weight: 600; color: var(--gray-700); line-height: 1.3; margin-bottom: 4px; }
     .res-item.active .res-item-title { color: var(--blue-700); }
+    .res-item-play {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 3px 8px; border-radius: 6px;
+      background: var(--orange-500); color: white;
+      font-size: .62rem; font-weight: 800;
+      font-family: 'Nunito', sans-serif;
+      text-decoration: none; margin-top: 2px;
+      transition: background var(--transition);
+      border: none; cursor: pointer;
+    }
+    .res-item-play:hover { background: var(--orange-600); }
 
     /* Main area */
     .main-img-box {
@@ -533,6 +544,24 @@
     .res-action-btn:hover { background: var(--gray-100); border-color: var(--gray-500); }
     .res-action-btn.primary { background: var(--blue-600); border-color: var(--blue-600); color: white; }
     .res-action-btn.primary:hover { background: var(--blue-700); }
+    .res-action-btn.jugar {
+      background: linear-gradient(135deg, var(--orange-500), var(--orange-600));
+      border-color: var(--orange-600); color: white;
+      font-size: .95rem; font-weight: 900;
+      padding: 10px 24px;
+      box-shadow: 0 4px 0 var(--orange-600);
+      transform: translateY(0);
+      transition: all .15s;
+      font-family: 'Nunito', sans-serif;
+    }
+    .res-action-btn.jugar:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 0 var(--orange-600);
+    }
+    .res-action-btn.jugar:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 0 var(--orange-600);
+    }
 
     /* Badge tipo */
     .res-type-badge {
@@ -2132,11 +2161,11 @@ function renderDesarrollo(data) {
 
   const mainImg   = normalizeImgUrl(data.mainImg || '');
   const typeConfig = {
-    pdf:   { badge:'badge-pdf',   icon:'📄', label:'PDF',    btnPrimary:'⬇️ Descargar',     btnSecondary:'↗ Abrir' },
-    audio: { badge:'badge-audio', icon:'🎵', label:'Audio',  btnPrimary:'▶️ Reproducir',    btnSecondary:'⬇️ Descargar' },
-    img:   { badge:'badge-img',   icon:'🖼️', label:'Imagen', btnPrimary:'🔍 Ver imagen',    btnSecondary:null },
-    video: { badge:'badge-video', icon:'🎬', label:'Video',  btnPrimary:'▶️ Ver video',     btnSecondary:null },
-    link:  { badge:'badge-link',  icon:'🔗', label:'Enlace', btnPrimary:'↗ Ir al recurso',  btnSecondary:null },
+    pdf:   { badge:'badge-pdf',   icon:'📄', label:'PDF',    btnPrimary:'⬇️ Descargar',    btnSecondary:'↗ Abrir' },
+    audio: { badge:'badge-audio', icon:'🎵', label:'Audio',  btnPrimary:'▶️ Reproducir',   btnSecondary:'⬇️ Descargar' },
+    img:   { badge:'badge-img',   icon:'🖼️', label:'Imagen', btnPrimary:'🔍 Ver imagen',   btnSecondary:null },
+    video: { badge:'badge-video', icon:'🎬', label:'Video',  btnPrimary:'▶️ Ver video',    btnSecondary:null },
+    link:  { badge:'badge-link',  icon:'🔗', label:'Enlace', btnPrimary:'🎮 ¡JUGAR!',      btnSecondary:'↗ Abrir' },
   };
 
   // Always show 4 slots — fill with real resources, rest are empty placeholders
@@ -2167,12 +2196,16 @@ function renderDesarrollo(data) {
     const thumbHtml = thumbSrc
       ? `<img src="${thumbSrc}" alt="${r.title||''}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span style="font-size:1.4rem;display:none;align-items:center;justify-content:center;width:100%;height:100%">${cfg.icon}</span>`
       : `<span style="font-size:1.4rem">${cfg.icon}</span>`;
+    const isLink = (r.type || 'link') === 'link';
+    const smallBtn = isLink
+      ? `<a href="${r.url||'#'}" target="_blank" rel="noopener" class="res-item-play" onclick="event.stopPropagation()">🎮 JUGAR</a>`
+      : `<a href="${r.url||'#'}" target="_blank" rel="noopener" class="res-item-play" style="background:var(--blue-600)" onclick="event.stopPropagation()">${cfg.icon} Abrir</a>`;
     return `
       <div class="res-item${i===0?' active':''}" onclick="selectResource(${i})" id="res-item-${i}">
         <div class="res-item-thumb">${thumbHtml}</div>
         <div class="res-item-body">
-          <div class="res-item-badge">${cfg.icon} ${cfg.label}</div>
           <div class="res-item-title">${r.title||'Recurso'}</div>
+          ${smallBtn}
         </div>
       </div>`;
   }).join('');
@@ -2188,14 +2221,15 @@ function renderDesarrollo(data) {
         <p>El docente aún no ha cargado<br>la imagen principal</p>
       </div>`;
 
+  const isFirstLink = (first?.type || 'link') === 'link';
   const mainTitleHtml = first
-    ? `<div class="res-type-badge ${firstCfg.badge}" id="mainBadge">${firstCfg.icon} ${firstCfg.label}</div>
-       <p class="main-res-title" id="mainTitle">${first.title||'Recurso'}</p>
-       <p class="main-res-desc"  id="mainDesc">${first.desc||''}</p>
-       <div class="main-res-actions" id="mainActions">
-         <a href="${first.url||'#'}" target="_blank" rel="noopener" class="res-action-btn primary">${firstCfg.btnPrimary}</a>
+    ? `<p class="main-res-title" id="mainTitle">${first.title||'Recurso'}</p>
+       <div class="main-res-actions" id="mainActions" style="margin-bottom:10px">
+         <a href="${first.url||'#'}" target="_blank" rel="noopener" class="res-action-btn ${isFirstLink?'jugar':'primary'}">${firstCfg.btnPrimary}</a>
          ${firstCfg.btnSecondary ? `<a href="${first.url||'#'}" target="_blank" rel="noopener" class="res-action-btn">${firstCfg.btnSecondary}</a>` : ''}
-       </div>`
+       </div>
+       <p class="main-res-desc" id="mainDesc">${first.desc||''}</p>
+       <div id="mainBadge" style="display:none"></div>`
     : `<p class="main-res-desc" style="color:var(--gray-500);text-align:center;padding:10px 0" id="mainTitle">Selecciona un recurso de la barra izquierda</p>
        <div id="mainBadge" style="display:none"></div>
        <p id="mainDesc"></p>
@@ -2246,11 +2280,13 @@ function selectResource(idx) {
 
   if (titleEl)   titleEl.textContent   = r.title || 'Recurso';
   if (descEl)    descEl.textContent    = r.desc  || '';
-  if (badgeEl)   { badgeEl.className = `res-type-badge ${cfg.badge}`; badgeEl.textContent = `${cfg.icon} ${cfg.label}`; }
+  if (badgeEl)   { badgeEl.style.display = 'none'; }
   if (actionsEl) {
     const resUrl = r.url || '#';
+    const btnClass = (r.type || 'link') === 'link' ? 'jugar' : 'primary';
     const sec = cfg.btnSecondary ? `<a href="${resUrl}" target="_blank" rel="noopener" class="res-action-btn">${cfg.btnSecondary}</a>` : '';
-    actionsEl.innerHTML = `<a href="${resUrl}" target="_blank" rel="noopener" class="res-action-btn primary">${cfg.btnPrimary}</a>${sec}`;
+    actionsEl.style.marginBottom = '10px';
+    actionsEl.innerHTML = `<a href="${resUrl}" target="_blank" rel="noopener" class="res-action-btn ${btnClass}">${cfg.btnPrimary}</a>${sec}`;
   }
 }
 
@@ -2368,6 +2404,10 @@ async function fetchDataFromSheets() {
     ops.forEach(op => steps.forEach(step => {
       if (json[op] && json[op][step] && Object.keys(json[op][step]).length > 0) {
         appData[op][step] = json[op][step];
+        // Debug: log how many resources came back
+        if (step === 'desarrollo' && json[op][step].resources) {
+          console.log(`[AventurasMat] ${op} desarrollo: ${json[op][step].resources.length} recursos`);
+        }
       }
     }));
     saveToLocalStorage();
@@ -2421,6 +2461,7 @@ function sendToAppsScript(op, step, payload) {
         if (r.thumb && r.thumb.startsWith('data:')) r.thumb = '';
         return r;
       });
+      console.log(`[AventurasMat] Guardando ${cleanPayload.resources.length} recursos para ${op}/${step}`);
     }
 
     const url = SCRIPT_URL
