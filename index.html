@@ -2433,6 +2433,15 @@ async function saveDataToSheets() {
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Guardando...'; }
 
   const payload = buildAdminPayload();
+  // Ensure thumb base64 is stripped before sending to Sheets
+  if (payload.resources) {
+    payload.resources = payload.resources.map(r => {
+      const clean = Object.assign({}, r);
+      if (clean.thumb && clean.thumb.startsWith('data:')) clean.thumb = '';
+      return clean;
+    });
+  }
+  if (payload.mainImg && payload.mainImg.startsWith('data:')) payload.mainImg = '';
 
   // Si el payload contiene imagen base64, es demasiado grande para GET
   // Usamos un iframe oculto como puente (técnica clásica para Apps Script + CORS)
@@ -2451,41 +2460,33 @@ async function saveDataToSheets() {
 // Esto evita el bloqueo CORS que afecta a fetch() desde GitHub Pages
 function sendToAppsScript(op, step, payload) {
   return new Promise((resolve, reject) => {
-    // Limpiar imágenes base64 (demasiado pesadas para URL params)
-    const cleanPayload = JSON.parse(JSON.stringify(payload));
-    if (cleanPayload.mainImg && cleanPayload.mainImg.startsWith('data:')) {
-      cleanPayload.mainImg = '';
-    }
-    if (cleanPayload.resources) {
-      cleanPayload.resources = cleanPayload.resources.map(r => {
-        if (r.thumb && r.thumb.startsWith('data:')) r.thumb = '';
-        return r;
-      });
-      console.log(`[AventurasMat] Guardando ${cleanPayload.resources.length} recursos para ${op}/${step}`);
+    // payload ya viene limpio de base64 desde saveDataToSheets()
+    const dataStr = JSON.stringify(payload);
+    console.log(`[AventurasMat] Enviando a Sheets: ${op}/${step} — ${dataStr.length} chars`);
+    if (payload.resources) {
+      console.log(`[AventurasMat] Recursos: ${payload.resources.length}`);
     }
 
     const url = SCRIPT_URL
       + '?action=saveData'
       + '&op='   + encodeURIComponent(op)
       + '&step=' + encodeURIComponent(step)
-      + '&data=' + encodeURIComponent(JSON.stringify(cleanPayload));
+      + '&data=' + encodeURIComponent(dataStr);
 
-    // Primero intentar con fetch (funciona en muchos casos)
+    // Fetch con no-cors (no podemos leer respuesta pero sí enviar)
     fetch(url, { method: 'GET', mode: 'no-cors' })
       .then(() => {
-        // no-cors siempre resuelve aunque no podamos leer la respuesta
-        // Verificar con GET que sí se guardó
-        setTimeout(() => resolve(), 1000);
+        setTimeout(() => resolve(), 1200);
       })
       .catch(() => {
-        // Fallback: iframe oculto
+        // Fallback iframe
         const iframe = document.createElement('iframe');
         iframe.style.display = 'none';
         document.body.appendChild(iframe);
         let done = false;
         const timer = setTimeout(() => {
           if (!done) { done = true; document.body.removeChild(iframe); resolve(); }
-        }, 4000);
+        }, 5000);
         iframe.onerror = () => {
           if (!done) { done = true; clearTimeout(timer); document.body.removeChild(iframe); reject(new Error('Error de red')); }
         };
